@@ -1,1 +1,13 @@
 10.5281/zenodo.23468679
+
+Concept DOI: 10.5281/zenodo.23468679
+Version DOIs (main line):
+  1.0.0  10.5281/zenodo.23468680
+  1.0.1  10.5281/zenodo.23468684
+  1.1.0  10.5281/zenodo.23468693
+  1.1.1  10.5281/zenodo.23468704
+  1.1.2  10.5281/zenodo.23468719
+  1.2.0  10.5281/zenodo.23472913
+  1.3.0  10.5281/zenodo.23483849
+Experiment branches (mem 0.1.0 / 0.1.1, decay, order, diag, ...) are archived
+under the same concept DOI (per-version DOIs listed on Zenodo).
