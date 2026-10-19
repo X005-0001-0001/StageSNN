@@ -4,6 +4,26 @@
 
 ---
 
+## mem 0.1.1 — 2026-10-20（实验分支）
+
+> 恢复 numba 双后端：慢库/使用度/rho 已移植进 numba 内核（与 numpy 严格同构）。
+
+### 内核移植
+- _learn_jit：容量统计 W+W_s；逐行 
+ho = u/(u+mean(u_act))；LTP 按 (1-rho)/rho 分入快/慢；learn 尾部 u EMA；
+- _run_stream：读出差值相加 W+W_s；慢库不参与惰性衰减；
+- 包装层：W_s/u 缓冲 + u_rate = learn_every_ms/tau_decay_w。
+
+### 等价性与验证
+- 研究线 probe（big3_mem 快照 300tok，W_s/u 非零）：Δlogits 3.8e-6、argmax 1.0000、ΔW 7.8e-8、Δγ2 5.1e-7、Δγc 7.5e-9、ltp relΔ 2.0e-9；numba ~2.7× 加速；
+- 交付物双后端 600-token 烟测逐位一致（ltp 63.2386 / w_sum 34.4795 / val_ppl 2991.85）。
+
+### 变更
+- BACKEND 恢复 'auto'；移除 0.1.0 的 numba 回退提示与 main 兜底。
+- 文件字节原样收录（无 BOM、CRLF）。
+
+---
+
 ## mem 0.1.0 — 2026-10-19（实验分支）
 
 > 定位：实验分支 mem 首版 —— **双时间尺度巩固（fast W + slow W_s）**，零新增常数。自主线 io 1.2.0 派生。
