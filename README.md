@@ -8,7 +8,9 @@
 **A forward-only, single-file spiking language model trained purely with local plasticity rules — no backpropagation, no PyTorch, CPU-only.**
 **单文件、纯前向、只用局部可塑性规则训练的脉冲语言模型 —— 无反向传播、无 PyTorch、CPU 即可完整训练。**
 
-> **当前最新 / Latest：`1.0.0`（2026-10-19）** —— **首版交付**：elite 外壳（菜单/日志/数据约定，v5 messages 渲染 + 训练区间 spans）+ StageSNN 阶段链脉冲内核（K=5 延迟链 M + P 读出群 + 局部 Hebbian/ATP + γ2 二阶突触 + γcopy 对角回指路由）。纯前向、无反向传播；移除依赖反向传播的旧内核（并行复波 SSM + AdamW）与 RL/GRPO 功能。
+> **当前最新 / Latest：`1.0.1`（2026-10-19）** —— **工程化清理**：数值阈值 / 精度下限全部提升为**具名开关**（去除散落魔数）；菜单续训自动推算下一分块偏移（`offset = 上块 offset + tokens_done`）；预览长度改为开关。只做开关化与自动化，**不改内核数学与数值行为**。
+
+> **上一版 / Previous：`1.0.0`（2026-10-19）** —— 首版交付：elite 外壳 + StageSNN 阶段链脉冲内核（K=5 延迟链 M + P 读出群 + 局部 Hebbian/ATP + γ2/γcopy）；纯前向、无反向传播；移除依赖反向传播的旧内核与 RL/GRPO。
 
 **语言 / Language:** [中文文档](#中文文档) · [English Documentation](#english-documentation)
 
@@ -61,19 +63,19 @@ flowchart TD
 
 ```bash
 # 交互菜单（数据管线 / 训练 / 评估 / 对话 / 统计 / 保存）
-python StageSNN_bio_1.0.0.py
+python StageSNN_bio_1.0.1.py
 
 # 数据管线：v5 messages 格式 jsonl → 字符级 ids/mask（词表仅训练切分；100 条验证对话，seed 0 打乱）
-python StageSNN_bio_1.0.0.py data --src dsr1_v5_0001.jsonl --out stage_data
+python StageSNN_bio_1.0.1.py data --src dsr1_v5_0001.jsonl --out stage_data
 
 # 分块训练（CPU；菜单续训自动推算下一分块偏移）
-python StageSNN_bio_1.0.0.py train --data-dir stage_data --tag bio1 --tokens 100000
+python StageSNN_bio_1.0.1.py train --data-dir stage_data --tag bio1 --tokens 100000
 
 # 评估 / n-gram 基线对照 / 对话生成 / 统计
-python StageSNN_bio_1.0.0.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
-python StageSNN_bio_1.0.0.py baselines --data-dir stage_data
-python StageSNN_bio_1.0.0.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
-python StageSNN_bio_1.0.0.py stats     --data-dir stage_data
+python StageSNN_bio_1.0.1.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
+python StageSNN_bio_1.0.1.py baselines --data-dir stage_data
+python StageSNN_bio_1.0.1.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
+python StageSNN_bio_1.0.1.py stats     --data-dir stage_data
 ```
 
 **数据目录约定**（由 `data` 子命令生成）：`train_ids.npy`、`train_mask.npy`、`val_ids.npy`、`val_mask.npy`、`vocab.json`、`meta.json`；运行与快照写入 `stage_runs/<tag>/`。
@@ -102,6 +104,7 @@ python StageSNN_bio_1.0.0.py stats     --data-dir stage_data
 | 版本 | 日期 | 要点 | 文件 | Release |
 |---|---|---|---|---|
 | `1.0.0` | 2026-10-19 | 首版交付：elite 外壳 + StageSNN 阶段链脉冲内核（K=5 延迟链 M + P 读出群 + 局部 Hebbian/ATP + γ2/γcopy）；移除依赖反向传播的旧内核与 RL/GRPO | `v1.0.0/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.0.0) |
+| `1.0.1` | 2026-10-19 | 工程化清理：数值阈值/精度下限全部具名开关化（去魔数）；菜单续训自动推算下一分块偏移；预览长度开关（不改内核数学与数值行为） | `v1.0.1/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.0.1) |
 
 每个版本对应一个 GitHub Release，并由 [Zenodo](https://zenodo.org) 自动归档、分配 DOI。
 
@@ -151,10 +154,10 @@ python StageSNN_bio_1.0.0.py stats     --data-dir stage_data
 ## Quick Start
 
 ```bash
-python StageSNN_bio_1.0.0.py                    # interactive menu
-python StageSNN_bio_1.0.0.py data --src corpus.jsonl --out stage_data
-python StageSNN_bio_1.0.0.py train --data-dir stage_data --tag bio1 --tokens 100000
-python StageSNN_bio_1.0.0.py eval | baselines | chat | stats  # evaluation & tooling
+python StageSNN_bio_1.0.1.py                    # interactive menu
+python StageSNN_bio_1.0.1.py data --src corpus.jsonl --out stage_data
+python StageSNN_bio_1.0.1.py train --data-dir stage_data --tag bio1 --tokens 100000
+python StageSNN_bio_1.0.1.py eval | baselines | chat | stats  # evaluation & tooling
 ```
 
 Requirements: Python ≥ 3.9, NumPy. Data format: `train_ids.npy`, `train_mask.npy`, `val_ids.npy`, `val_mask.npy`, `vocab.json`, `meta.json` produced by the `data` subcommand from a v5-messages JSONL corpus.
