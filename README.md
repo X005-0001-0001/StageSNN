@@ -1,5 +1,6 @@
 # StageSNN：纯前向、本地可塑性的脉冲语言模型
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23468679.svg)](https://doi.org/10.5281/zenodo.23468679)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0006--4332--1295-green)](https://orcid.org/0009-0006-4332-1295)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -130,7 +131,7 @@ python StageSNN_bio_1.1.2.py stats     --data-dir stage_data
 
 ## 引用
 
-若本项目对你的研究有帮助，请引用（机器可读元数据见 `CITATION.cff`；DOI 将在首个 Release 归档后填入）：
+若本项目对你的研究有帮助，请引用。归档 DOI：[10.5281/zenodo.23468679](https://doi.org/10.5281/zenodo.23468679)（概念 DOI，指向最新版；`1.0.0`–`1.1.2` 各版本的版本 DOI 见 Zenodo 页面与 Releases）；机器可读元数据见 `CITATION.cff`：
 
 ```bibtex
 @software{stagesnn2026,
@@ -138,6 +139,7 @@ python StageSNN_bio_1.1.2.py stats     --data-dir stage_data
   title   = {StageSNN: A Forward-Only, Biologically-Plausible Spiking Language Model},
   year    = {2026},
   url     = {https://github.com/X005-0001-0001/StageSNN},
+  doi     = {10.5281/zenodo.23468679},
   license = {AGPL-3.0}
 }
 ```
@@ -191,7 +193,7 @@ Requirements: Python ≥ 3.9, NumPy. Data format: `train_ids.npy`, `train_mask.n
 
 ## Versions & Archival
 
-See the [releases page](https://github.com/X005-0001-0001/StageSNN/releases); every release is automatically archived by Zenodo with a DOI.
+See the [releases page](https://github.com/X005-0001-0001/StageSNN/releases); every release is archived by Zenodo with its own version DOI. Concept DOI: [10.5281/zenodo.23468679](https://doi.org/10.5281/zenodo.23468679).
 
 ## Citation & License
 
