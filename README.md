@@ -10,9 +10,9 @@
 **A forward-only, single-file spiking language model trained purely with local plasticity rules — no backpropagation, no PyTorch, CPU-only.**
 **单文件、纯前向、只用局部可塑性规则训练的脉冲语言模型 —— 无反向传播、无 PyTorch、CPU 即可完整训练。**
 
-> **当前最新 / Latest：`1.1.2`（2026-10-19）** —— **惰性逐行衰减（`LAZY_DECAY`，默认开启）**：被动衰减不再走每事件全矩阵扫描，改为按行记账、读写时补乘、调用结束物化全表；与逐事件衰减**严格同语义**（big3+门控 300 token：Δlogits 3.4e-5、argmax 100%、ΔW 8.9e-7、Δγ2 8.6e-6）。训练期热点衰减流量降为 ~0（V=3000、amort=25 时 numba 17.2 → **9.5 ms/token**），摊销参数 `DECAY_AMORT_STEPS` 开销≈0。另修复 numba 内核两处缩进嵌套缺陷（详见 CHANGELOG），修复后 eager 回退路径与 `1.1.1` **逐位一致**（ΔW 2.98e-8）。
+> **当前最新 / Latest：`1.2.0`（2026-10-19）** —— **先验门控自适应化（滑动阈值）**：γ2 / γcopy 的固定绝对阈值（`GATE2_KAPPA=0.5` / `COPY_KAPPA=0.3`）替换为 **BCM 式滑动修改阈值** —— 更新参考量改为各统计量自身的 EMA 基线（时间尺度复用各门自身 τ，**零新增参数、零手调常数**）。更新天然零均值，长训不再单向漂移。动机（研究线实证）：real1 续训后门控读出反向伤害（关 γcopy 读出：acc 12.30%→**14.19%**）；小语料 30k 轨迹旧规则 acc 15.2%→9.86%（γc_max 0.16→0.25 爬升）。新规则重验 P3 判据：**ca_lag4 191/191=1.000**、acc 37.62%（旧 37.64%）、cal PPL 111.92（旧 108.40，仍远优 bigram 306.6 / trigram 128.6）。双后端烟测指标逐位一致。
 
-> **上一版 / Previous：`1.1.1`（2026-10-19）** —— numba 热路径 v2：稀疏脉冲列表化（严格等价；双后端烟测指标逐位一致；同刻对照 numpy 1.3~1.8×）。
+> **上一版 / Previous：`1.1.2`（2026-10-19）** —— 惰性逐行衰减（默认开；17.2→9.5 ms/token）+ 两处内核缩进缺陷修复（eager 与 1.1.1 逐位一致）。
 
 **语言 / Language:** [中文文档](#中文文档) · [English Documentation](#english-documentation)
 
@@ -57,6 +57,7 @@ flowchart TD
 - **先验门控（默认开启）**：
   - **γ2（二阶突触）**：`explaining-away` 式抑制，防止共现特征被重复计入；
   - **γcopy（对角回指路由）**：让读出可以"回指"本窗输入结构，显著改善结构性指标。
+  两者的更新均使用 **BCM 式滑动阈值**（`1.2.0` 起）：参考量为 `post` / 获胜列 `Mc_read` 的 EMA 基线（时间尺度复用各门自身 τ），更新零均值、无手调常数、长训不漂移。
 - **评估协议**：掩码口径（仅 assistant 段计分，含结束符；其余为 0）；温度仅在**训练集切片**上自校准；ACC（温度无关）为第一指标。
 
 ## 快速开始
@@ -65,19 +66,19 @@ flowchart TD
 
 ```bash
 # 交互菜单（数据管线 / 训练 / 评估 / 对话 / 统计 / 保存）
-python StageSNN_bio_1.1.2.py
+python StageSNN_bio_1.2.0.py
 
 # 数据管线：v5 messages 格式 jsonl → 字符级 ids/mask（词表仅训练切分；100 条验证对话，seed 0 打乱）
-python StageSNN_bio_1.1.2.py data --src dsr1_v5_0001.jsonl --out stage_data
+python StageSNN_bio_1.2.0.py data --src dsr1_v5_0001.jsonl --out stage_data
 
 # 分块训练（CPU；菜单续训自动推算下一分块偏移）
-python StageSNN_bio_1.1.2.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
+python StageSNN_bio_1.2.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
 
 # 评估 / n-gram 基线对照 / 对话生成 / 统计
-python StageSNN_bio_1.1.2.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
-python StageSNN_bio_1.1.2.py baselines --data-dir stage_data
-python StageSNN_bio_1.1.2.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
-python StageSNN_bio_1.1.2.py stats     --data-dir stage_data
+python StageSNN_bio_1.2.0.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
+python StageSNN_bio_1.2.0.py baselines --data-dir stage_data
+python StageSNN_bio_1.2.0.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
+python StageSNN_bio_1.2.0.py stats     --data-dir stage_data
 ```
 
 **数据目录约定**（由 `data` 子命令生成）：`train_ids.npy`、`train_mask.npy`、`val_ids.npy`、`val_mask.npy`、`vocab.json`、`meta.json`；运行与快照写入 `stage_runs/<tag>/`。
@@ -103,19 +104,19 @@ python StageSNN_bio_1.1.2.py stats     --data-dir stage_data
 | `1.1.1` Numba（v2 稀疏内核） | amort=100 | 同刻对照 numpy 加速 1.3~1.8×（指标逐位一致） |
 | `1.1.2` Numba（惰性衰减，默认开） | amort=25 | **9.5**（同期 NumPy 22.6；amort 开销≈0） |
 
-**数值等价性**（NumPy 基准 ↔ Numba，big3 快照 + 门控，300 token 学习；`1.1.2` 复测）：
+**数值等价性**（NumPy 基准 ↔ Numba，big3 快照 + 门控，300 token 学习）：
 
-| 路径 | Δlogits | argmax | ΔW | Δγ2 | ltp relΔ |
-|---|---|---|---|---|---|
-| eager（`LAZY_DECAY=False`） | 7.6e-6 | 100% | 2.98e-8 | 1.2e-7 | 1.9e-9 |
-| lazy（默认） | 3.4e-5 | 100% | 8.9e-7 | 8.6e-6 | 2.0e-7 |
+| 路径 | Δlogits | argmax | ΔW | Δγ2 | Δγc | ltp relΔ |
+|---|---|---|---|---|---|---|
+| lazy（默认；`1.2.0` 复测，滑动阈值规则） | 1.5e-5 | 100% | 8.9e-7 | 2.0e-6 | 4.8e-7 | 2.0e-7 |
+| eager（回退路径；`1.1.2` 参考，衰减时序本版未改） | 7.6e-6 | 100% | 3.0e-8 | 1.2e-7 | 6.0e-8 | 1.9e-9 |
 
 另有：新模型 n≤40 token 扫描两种路径均 ~1-ULP 级（ΔW 2~7e-9）；脉冲计数逐 token 一致；双后端烟测（300/400 token）指标逐位一致。
 
 **结果**（研究线记录）：
 
 - **结构性命题（已达成）**：研究语料（V=2706，训练约 29.6k tokens）上，模型 **PPL 108.40 / ACC 37.64%**（γ2+γcopy 开启）；同协议基线 — unigram 434.9 / 13.4%，bigram 306.6 / 30.2%，4-gram 466.0 / 30.2%。即：**纯前向 + 局部可塑性可以击败高阶词间统计基线**。
-- **真实中文问答语料（进行中）**：字符级 V=3000，训练切分 2.79M 字符（92.4% 掩码）；分块训练进行中 — 截至 2026-10-19，掩码口径 val_ppl 2297.9 / ACC 15.93%（起点≈uniform 3000；同协议基线 unigram 418.2 / bigram 138.9，模型仍在爬坡）。
+- **真实中文问答语料（进行中）**：字符级 V=3000，训练切分 2.79M 字符（92.4% 掩码）；分块训练进行中 — chunk1 后掩码口径 val_ppl 2297.9 / ACC 15.93%，chunk2 后出现回退（2593.8 / 12.30%）；诊断定位为固定阈值门控在长训后的读出污染，已在 `1.2.0` 以滑动阈值修复（详见 CHANGELOG 1.2.0；同协议基线 unigram 418.2 / bigram 138.9，模型仍在爬坡）。
 
 ## 版本历史
 
@@ -126,6 +127,7 @@ python StageSNN_bio_1.1.2.py stats     --data-dir stage_data
 | `1.1.0` | 2026-10-19 | 内核加速：可选 numba 热路径（等价验证 logits Δ~1e-6 / ΔW~1e-8）+ DECAY_AMORT_STEPS 被动衰减摊销（37→10.7 ms/token，3.5×） | `v1.1.0/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.1.0) |
 | `1.1.1` | 2026-10-19 | numba 热路径 v2：稀疏脉冲列表化（严格等价：Δ≤1e-5、烟测指标逐位一致；对照 numpy 1.3~1.8×） | `v1.1.1/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.1.1) |
 | `1.1.2` | 2026-10-19 | 惰性逐行衰减（默认开；严格同语义，Δlogits 3.4e-5 / ΔW 8.9e-7；17.2→9.5 ms/token）+ 两处内核缩进嵌套缺陷修复（eager 与 1.1.1 逐位一致） | `v1.1.2/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.1.2) |
+| `1.2.0` | 2026-10-19 | 先验门控自适应化：BCM 式滑动修改阈值（删除固定 kappa 常数，零新增参数）；P3 判据重验通过（ca 191/191、acc 37.62%）；双后端逐位一致 | `v1.2.0/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.2.0) |
 
 每个版本对应一个 GitHub Release，并由 [Zenodo](https://zenodo.org) 自动归档、分配 DOI。
 
@@ -164,6 +166,8 @@ python StageSNN_bio_1.1.2.py stats     --data-dir stage_data
 - **Priors**: γ2 second-order synapses (explaining-away) and γcopy diagonal copy routing, both on by default.
 - **Scoring**: `logits[i]` predicts `ids[i]` (no t+1 target injection); temperature is calibrated on a *training* slice only; accuracy (temperature-free) is the primary metric.
 
+- **Adaptive gates (1.2.0)**: γ2/γcopy use **BCM-style sliding thresholds** (per-unit EMA baselines at each gate's own timescale) instead of fixed kappa constants — zero-mean updates, no hand-tuned thresholds, no long-run drift.
+
 ## Red Lines (Non-Negotiable)
 
 1. No backpropagation of any kind — local plasticity rules only.
@@ -176,10 +180,10 @@ python StageSNN_bio_1.1.2.py stats     --data-dir stage_data
 ## Quick Start
 
 ```bash
-python StageSNN_bio_1.1.2.py                    # interactive menu
-python StageSNN_bio_1.1.2.py data --src corpus.jsonl --out stage_data
-python StageSNN_bio_1.1.2.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
-python StageSNN_bio_1.1.2.py eval | baselines | chat | stats  # evaluation & tooling
+python StageSNN_bio_1.2.0.py                    # interactive menu
+python StageSNN_bio_1.2.0.py data --src corpus.jsonl --out stage_data
+python StageSNN_bio_1.2.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
+python StageSNN_bio_1.2.0.py eval | baselines | chat | stats  # evaluation & tooling
 ```
 
 Requirements: Python ≥ 3.9, NumPy. Data format: `train_ids.npy`, `train_mask.npy`, `val_ids.npy`, `val_mask.npy`, `vocab.json`, `meta.json` produced by the `data` subcommand from a v5-messages JSONL corpus.
