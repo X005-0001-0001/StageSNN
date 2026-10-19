@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Zeng"
+    given-names: "Naiqi"
+    orcid: "https://orcid.org/0009-0006-4332-1295"
+title: "StageSNN: A Forward-Only, Biologically-Plausible Spiking Language Model"
+version: 1.0.0
+date-released: 2026-10-19
+license: "AGPL-3.0"
+repository-code: "https://github.com/X005-0001-0001/StageSNN"
+keywords:
+  - spiking-neural-networks
+  - SNN
+  - language-model
+  - local-plasticity
+  - hebbian-learning
+  - forward-only
+  - numpy

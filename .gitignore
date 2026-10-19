@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+stage_data/
+stage_runs/
+*.npz
+training_log.txt
