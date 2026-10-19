@@ -5,7 +5,7 @@ authors:
     given-names: "Naiqi"
     orcid: "https://orcid.org/0009-0006-4332-1295"
 title: "StageSNN: A Forward-Only, Biologically-Plausible Spiking Language Model"
-version: 1.1.1
+version: 1.1.2
 date-released: 2026-10-19
 license: "AGPL-3.0"
 repository-code: "https://github.com/X005-0001-0001/StageSNN"
