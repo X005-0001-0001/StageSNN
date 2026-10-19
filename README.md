@@ -10,9 +10,9 @@
 **A forward-only, single-file spiking language model trained purely with local plasticity rules — no backpropagation, no PyTorch, CPU-only.**
 **单文件、纯前向、只用局部可塑性规则训练的脉冲语言模型 —— 无反向传播、无 PyTorch、CPU 即可完整训练。**
 
-> **当前最新 / Latest：`1.2.0`（2026-10-19）** —— **先验门控自适应化（滑动阈值）**：γ2 / γcopy 的固定绝对阈值（`GATE2_KAPPA=0.5` / `COPY_KAPPA=0.3`）替换为 **BCM 式滑动修改阈值** —— 更新参考量改为各统计量自身的 EMA 基线（时间尺度复用各门自身 τ，**零新增参数、零手调常数**）。更新天然零均值，长训不再单向漂移。动机（研究线实证）：real1 续训后门控读出反向伤害（关 γcopy 读出：acc 12.30%→**14.19%**）；小语料 30k 轨迹旧规则 acc 15.2%→9.86%（γc_max 0.16→0.25 爬升）。新规则重验 P3 判据：**ca_lag4 191/191=1.000**、acc 37.62%（旧 37.64%）、cal PPL 111.92（旧 108.40，仍远优 bigram 306.6 / trigram 128.6）。双后端烟测指标逐位一致。
+> **当前最新 / Latest：`1.3.0`（2026-10-20）** —— **双时间尺度巩固（fast W + slow W_s；逐行相对使用度 `rho` 分拆、零新增常数；numba 同构移植）**；big3 cal PPL 106.70 / acc 37.75% / ca 191/191；real1 续训 200k→500k 稳定（1704.6 / 1969.5 / 1826.0），近因塌陷受抑。
 
-> **上一版 / Previous：`1.1.2`（2026-10-19）** —— 惰性逐行衰减（默认开；17.2→9.5 ms/token）+ 两处内核缩进缺陷修复（eager 与 1.1.1 逐位一致）。
+> **上一版 / Previous：`1.2.0`（2026-10-19）** —— **先验门控自适应化（滑动阈值）**：γ2 / γcopy 的固定绝对阈值（`GATE2_KAPPA=0.5` / `COPY_KAPPA=0.3`）替换为 **BCM 式滑动修改阈值** —— 更新参考量改为各统计量自身的 EMA 基线（时间尺度复用各门自身 τ，**零新增参数、零手调常数**）。更新天然零均值，长训不再单向漂移。动机（研究线实证）：real1 续训后门控读出反向伤害（关 γcopy 读出：acc 12.30%→**14.19%**）；小语料 30k 轨迹旧规则 acc 15.2%→9.86%（γc_max 0.16→0.25 爬升）。新规则重验 P3 判据：**ca_lag4 191/191=1.000**、acc 37.62%（旧 37.64%）、cal PPL 111.92（旧 108.40，仍远优 bigram 306.6 / trigram 128.6）。双后端烟测指标逐位一致。
 
 **语言 / Language:** [中文文档](#中文文档) · [English Documentation](#english-documentation)
 
@@ -66,19 +66,19 @@ flowchart TD
 
 ```bash
 # 交互菜单（数据管线 / 训练 / 评估 / 对话 / 统计 / 保存）
-python StageSNN_bio_1.2.0.py
+python StageSNN_bio_1.3.0.py
 
 # 数据管线：v5 messages 格式 jsonl → 字符级 ids/mask（词表仅训练切分；100 条验证对话，seed 0 打乱）
-python StageSNN_bio_1.2.0.py data --src dsr1_v5_0001.jsonl --out stage_data
+python StageSNN_bio_1.3.0.py data --src dsr1_v5_0001.jsonl --out stage_data
 
 # 分块训练（CPU；菜单续训自动推算下一分块偏移）
-python StageSNN_bio_1.2.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
+python StageSNN_bio_1.3.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
 
 # 评估 / n-gram 基线对照 / 对话生成 / 统计
-python StageSNN_bio_1.2.0.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
-python StageSNN_bio_1.2.0.py baselines --data-dir stage_data
-python StageSNN_bio_1.2.0.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
-python StageSNN_bio_1.2.0.py stats     --data-dir stage_data
+python StageSNN_bio_1.3.0.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
+python StageSNN_bio_1.3.0.py baselines --data-dir stage_data
+python StageSNN_bio_1.3.0.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
+python StageSNN_bio_1.3.0.py stats     --data-dir stage_data
 ```
 
 **数据目录约定**（由 `data` 子命令生成）：`train_ids.npy`、`train_mask.npy`、`val_ids.npy`、`val_mask.npy`、`vocab.json`、`meta.json`；运行与快照写入 `stage_runs/<tag>/`。
@@ -128,6 +128,7 @@ python StageSNN_bio_1.2.0.py stats     --data-dir stage_data
 | `1.1.1` | 2026-10-19 | numba 热路径 v2：稀疏脉冲列表化（严格等价：Δ≤1e-5、烟测指标逐位一致；对照 numpy 1.3~1.8×） | `v1.1.1/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.1.1) |
 | `1.1.2` | 2026-10-19 | 惰性逐行衰减（默认开；严格同语义，Δlogits 3.4e-5 / ΔW 8.9e-7；17.2→9.5 ms/token）+ 两处内核缩进嵌套缺陷修复（eager 与 1.1.1 逐位一致） | `v1.1.2/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.1.2) |
 | `1.2.0` | 2026-10-19 | 先验门控自适应化：BCM 式滑动修改阈值（删除固定 kappa 常数，零新增参数）；P3 判据重验通过（ca 191/191、acc 37.62%）；双后端逐位一致 | `v1.2.0/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.2.0) |
+| `1.3.0` | 2026-10-20 | 双时间尺度巩固合入主线（自 mem 分支升格）：逐行使用度 EMA → 相对 rho 分拆 fast/slow，W_s 无衰减；big3 cal PPL 106.70 / acc 37.75% / ca 191/191；real1 续训稳定；numba 同构（Δlogits 3.8e-6、~2.7×）；双后端烟测逐位一致 | `v1.3.0/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.3.0) |
 
 每个版本对应一个 GitHub Release，并由 [Zenodo](https://zenodo.org) 自动归档、分配 DOI。
 
@@ -180,10 +181,10 @@ python StageSNN_bio_1.2.0.py stats     --data-dir stage_data
 ## Quick Start
 
 ```bash
-python StageSNN_bio_1.2.0.py                    # interactive menu
-python StageSNN_bio_1.2.0.py data --src corpus.jsonl --out stage_data
-python StageSNN_bio_1.2.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
-python StageSNN_bio_1.2.0.py eval | baselines | chat | stats  # evaluation & tooling
+python StageSNN_bio_1.3.0.py                    # interactive menu
+python StageSNN_bio_1.3.0.py data --src corpus.jsonl --out stage_data
+python StageSNN_bio_1.3.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
+python StageSNN_bio_1.3.0.py eval | baselines | chat | stats  # evaluation & tooling
 ```
 
 Requirements: Python ≥ 3.9, NumPy. Data format: `train_ids.npy`, `train_mask.npy`, `val_ids.npy`, `val_mask.npy`, `vocab.json`, `meta.json` produced by the `data` subcommand from a v5-messages JSONL corpus.
