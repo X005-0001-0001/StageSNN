@@ -1,6 +1,6 @@
 # StageSNN：纯前向、本地可塑性的脉冲语言模型
 
-> **实验分支 `mem`** —— 双时间尺度巩固（fast W + slow W_s）。本分支当前版本 `0.1.0`（`StageSNN_mem_0.1.0.py`）；主线见 `main`（`bio` 系列，最新 `1.2.0`）。实验分支共享同一 Zenodo 概念 DOI 归档。
+> **实验分支 `mem`** —— 双时间尺度巩固（fast W + slow W_s）。本分支当前版本 `0.1.1`（`StageSNN_mem_0.1.1.py`）；主线见 `main`（`bio` 系列，最新 `1.2.0`）。实验分支共享同一 Zenodo 概念 DOI 归档。
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23468679.svg)](https://doi.org/10.5281/zenodo.23468679)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
@@ -68,19 +68,19 @@ flowchart TD
 
 ```bash
 # 交互菜单（数据管线 / 训练 / 评估 / 对话 / 统计 / 保存）
-python StageSNN_mem_0.1.0.py
+python StageSNN_mem_0.1.1.py
 
 # 数据管线：v5 messages 格式 jsonl → 字符级 ids/mask（词表仅训练切分；100 条验证对话，seed 0 打乱）
-python StageSNN_mem_0.1.0.py data --src dsr1_v5_0001.jsonl --out stage_data
+python StageSNN_mem_0.1.1.py data --src dsr1_v5_0001.jsonl --out stage_data
 
 # 分块训练（CPU；菜单续训自动推算下一分块偏移）
-python StageSNN_mem_0.1.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
+python StageSNN_mem_0.1.1.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
 
 # 评估 / n-gram 基线对照 / 对话生成 / 统计
-python StageSNN_mem_0.1.0.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
-python StageSNN_mem_0.1.0.py baselines --data-dir stage_data
-python StageSNN_mem_0.1.0.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
-python StageSNN_mem_0.1.0.py stats     --data-dir stage_data
+python StageSNN_mem_0.1.1.py eval      --data-dir stage_data --brain stage_runs/bio1/snapshot.npz
+python StageSNN_mem_0.1.1.py baselines --data-dir stage_data
+python StageSNN_mem_0.1.1.py chat      --prompt "你好" --brain stage_runs/bio1/snapshot.npz
+python StageSNN_mem_0.1.1.py stats     --data-dir stage_data
 ```
 
 **数据目录约定**（由 `data` 子命令生成）：`train_ids.npy`、`train_mask.npy`、`val_ids.npy`、`val_mask.npy`、`vocab.json`、`meta.json`；运行与快照写入 `stage_runs/<tag>/`。
@@ -130,6 +130,7 @@ python StageSNN_mem_0.1.0.py stats     --data-dir stage_data
 | `1.1.1` | 2026-10-19 | numba 热路径 v2：稀疏脉冲列表化（严格等价：Δ≤1e-5、烟测指标逐位一致；对照 numpy 1.3~1.8×） | `v1.1.1/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.1.1) |
 | `1.1.2` | 2026-10-19 | 惰性逐行衰减（默认开；严格同语义，Δlogits 3.4e-5 / ΔW 8.9e-7；17.2→9.5 ms/token）+ 两处内核缩进嵌套缺陷修复（eager 与 1.1.1 逐位一致） | `v1.1.2/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.1.2) |
 | `1.2.0` | 2026-10-19 | 先验门控自适应化：BCM 式滑动修改阈值（删除固定 kappa 常数，零新增参数）；P3 判据重验通过（ca 191/191、acc 37.62%）；双后端逐位一致 | `v1.2.0/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/1.2.0) |
+| `mem-0.1.1` | 2026-10-20 | 实验分支：numba 双后端恢复（慢库/使用度/rho 移植，等价性 Δlogits 3.8e-6、numba ~2.7×；双后端烟测逐位一致） | `v0.1.1/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/mem-0.1.1) |
 | `mem-0.1.0` | 2026-10-19 | 实验分支：双时间尺度巩固（慢库 W_s 无衰减，rho 按相对使用度分拆；cal PPL 106.70 / acc 37.75% / ca 191/191；30k 末端 ppl 2204.8/acc 14.57% 抑制近因塌陷；numba 未移植→强制 numpy） | `v0.1.0/` | [Release](https://github.com/X005-0001-0001/StageSNN/releases/tag/mem-0.1.0) |
 
 每个版本对应一个 GitHub Release，并由 [Zenodo](https://zenodo.org) 自动归档、分配 DOI。
@@ -183,10 +184,10 @@ python StageSNN_mem_0.1.0.py stats     --data-dir stage_data
 ## Quick Start
 
 ```bash
-python StageSNN_mem_0.1.0.py                    # interactive menu
-python StageSNN_mem_0.1.0.py data --src corpus.jsonl --out stage_data
-python StageSNN_mem_0.1.0.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
-python StageSNN_mem_0.1.0.py eval | baselines | chat | stats  # evaluation & tooling
+python StageSNN_mem_0.1.1.py                    # interactive menu
+python StageSNN_mem_0.1.1.py data --src corpus.jsonl --out stage_data
+python StageSNN_mem_0.1.1.py train --data-dir stage_data --tag bio1 --tokens 100000 --backend auto
+python StageSNN_mem_0.1.1.py eval | baselines | chat | stats  # evaluation & tooling
 ```
 
 Requirements: Python ≥ 3.9, NumPy. Data format: `train_ids.npy`, `train_mask.npy`, `val_ids.npy`, `val_mask.npy`, `vocab.json`, `meta.json` produced by the `data` subcommand from a v5-messages JSONL corpus.
